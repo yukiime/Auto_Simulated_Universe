@@ -901,6 +901,12 @@ class UniverseUtils:
         else:
             y = x
         dx = int(9800 * y * 1295 / self.real_width / 180 * self.multi)
+        # dx = 9800 * y * 1295 / self.real_width / 180 * self.multi
+        # print("x:", x)
+        # print("y:", y)
+        # print("self.real_width:", self.real_width)
+        # print("dx:", dx)
+        # dx = int(dx)
         if self._stop == 0 and self.stop_move==0:
             win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, dx, 0)  # 进行视角移动
         time.sleep(0.05)
