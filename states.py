@@ -18,15 +18,17 @@ from align_angle import main as align_angle
 from utils.config import config
 import datetime
 
+pyautogui.FAILSAFE=False
+
 # 版本号
-version = "v4.921"
+version = "v4.97 stable"
 
 # 优先事件
 events = len(os.listdir("imgs/events"))
 
 
 class SimulatedUniverse(UniverseUtils):
-    def __init__(self, find, debug, show_map, speed, unlock, update=0):
+    def __init__(self, find, debug, show_map, speed, unlock=False, bonus=False, update=0):
         super().__init__()
         log.info("当前版本："+version)
         self.now_map = None
@@ -45,8 +47,14 @@ class SimulatedUniverse(UniverseUtils):
         self.floor_tm = time.time()
         self.re_align = 0
         self.unlock = unlock
+        self.check_bonus = bonus
+        self.kl=0
+        ex_notif=""
+        if bonus:
+            ex_notif=" 自动领取沉浸奖励"
+            log.info(ex_notif)
         self.update_count()
-        notif('开始运行',f'初始计数：{self.count}')
+        notif('开始运行'+ex_notif,f'初始计数：{self.count}')
         set_debug(debug > 0)
         if update and find:
             update_map()
@@ -106,14 +114,17 @@ class SimulatedUniverse(UniverseUtils):
             if self._stop:
                 break
             self.get_screen()
-            #self.click_target('imgs/mask_close1.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
+            #self.click_target('imgs/mask_enhance.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
             res = self.normal()
             # 未匹配到图片，降低匹配阈值，若一直无法匹配则乱点
             if res == 0:
                 if self.threshold > 0.95:
                     self.threshold -= 0.015
                 else:
-                    self.click((0.5062, 0.1454))
+                    if random.randint(0,9)!=0:
+                        self.click((0.5000, 0.1454))
+                    else:
+                        self.click((0.2062, 0.2054))
                     self.threshold = 0.97
                 time.sleep(0.5)
             # 匹配到图片 res=1时等待一段时间
@@ -211,27 +222,19 @@ class SimulatedUniverse(UniverseUtils):
                         log.info(
                             f"识别到传送点"
                         )
-                        flag=0
-                        for i in range(3):
-                            time.sleep(0.2+(i!=0))
-                            self.get_screen()
-                            img = self.check('z',0.3182,0.4333,mask="mask_f",large=False)
-                            if self.ts.sim('区域',img):
-                                self.press("f")
-                            elif i==0:
-                                return 0
-                            else:
-                                flag=1
-                                break
-                        if flag:
+                        self.press("f")
+                        time.sleep(1)
+                        self.get_screen()
+                        img = self.check('z',0.3182,0.4333,mask="mask_f",large=False)
+                        if self.ts.sim('区域',img):
+                            return 0
+                        else:
                             self.init_map()
                             self.floor += 1
                             map_log.info(
                                 f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层"
                             )
                             return 1
-                        else:
-                            return 0
                     elif self.re_align == 1 and self.debug == 0:
                         align_angle(10, 1)
                         self.multi = config.multi
@@ -256,6 +259,7 @@ class SimulatedUniverse(UniverseUtils):
             self.battle = 0
             # 刚进图，初始化一些数据
             if self.big_map_c == 0:
+                pyautogui.keyUp('w')
                 # 黑屏检测
                 while 1:
                     men = np.mean(self.get_screen())
@@ -282,7 +286,7 @@ class SimulatedUniverse(UniverseUtils):
                                 self.now_map, self.now_map_sim = now_map, now_map_sim
                             if ((
                                 self.now_map_sim > 0.7
-                                or time.time() - now_time > 2.2
+                                or time.time() - now_time > 2.5
                             ) and self.now_map_sim != -1) or self._stop:
                                 break
                         log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
@@ -298,8 +302,11 @@ class SimulatedUniverse(UniverseUtils):
                                 with open('check'+str(self.floor)+'.txt','r', encoding="utf-8",errors='ignore') as fh:
                                     s=fh.readline().strip('\n')
                                 s=eval(s)
+                                self.kl=0
                                 if not self.now_map in s:
                                     s.append(self.now_map)
+                                else:
+                                    self.kl=0
                                 with open('check'+str(self.floor)+'.txt','w', encoding="utf-8") as fh:
                                     fh.write(str(s))
                             except:
@@ -331,12 +338,12 @@ class SimulatedUniverse(UniverseUtils):
                     self.get_screen()
             self.lst_tm = time.time()
             # 长时间未交互/战斗，暂离或重开
-            if ((time.time() - self.lst_changed >= 45 - 7 * self.debug) and self.find == 1) or (self.floor==12 and self.mini_state>2):
+            if ((time.time() - self.lst_changed >= 45 - 7 * self.debug) and self.find == 1) or (self.floor==12 and self.mini_state>4) or self.kl:
                 time.sleep(1.5)
                 self.press("esc")
                 time.sleep(2)
                 self.init_map()
-                if self.floor==12:
+                if self.floor==12 or self.kl:
                     self.end_of_uni()
                     self.click((0.2708, 0.1324))
                     log.info(f"通关！当前层数:{self.floor+1}")
@@ -349,7 +356,7 @@ class SimulatedUniverse(UniverseUtils):
                     time.sleep(1)
                     #self.floor = 0
                     #self.click((0.2708, 0.1324))
-                elif random.randint(0, 2) != 3:
+                elif random.randint(0, 2) != 2:
                     self.click((0.2927, 0.2602))
                     notif("暂离",f"地图{self.now_map}，当前层数:{self.floor+1}")
                     map_log.error(
@@ -560,11 +567,6 @@ class SimulatedUniverse(UniverseUtils):
                 if i[1] == 1 and pt != i:
                     res.remove(i)
                     res.add((i[0], 0))
-        if self.floor == 11:
-            res = set()
-            res.add((self.last,3))
-        if len(res) == 1:
-            pyautogui.click()
         return res
 
     def get_center(self, img, i, j):
@@ -627,11 +629,11 @@ class SimulatedUniverse(UniverseUtils):
         cv.destroyAllWindows()
 
     def check_req(self):
-        self._stop = os.system('pip show numpy > NUL 2>&1') or self.unlock
+        self._stop = os.system('pip show numpy > NUL 2>&1') and not self.unlock
         if self._stop:
             log.info("未安装依赖库或环境变量未正确设置")
         time.sleep(10)
-        self._stop = os.system('pip show numpy > NUL 2>&1') or self.unlock
+        self._stop = os.system('pip show numpy > NUL 2>&1') and not self.unlock
         if self._stop:
             log.info("未安装依赖库或环境变量未正确设置")
 
@@ -652,7 +654,7 @@ class SimulatedUniverse(UniverseUtils):
 
 def main():
     log.info(f"find: {find}, debug: {debug}, show_map: {show_map}")
-    su = SimulatedUniverse(find, debug, show_map, speed, update)
+    su = SimulatedUniverse(find, debug, show_map, speed, update=update)
     try:
         su.start()
     except Exception:
